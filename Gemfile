@@ -18,7 +18,7 @@ gem 'fitgem'
 gem 'mendeley', git: 'git://github.com/tsujigiri/mendeley.git', branch: 'paging_search'
 
 # New Relic monitoring, off by default in development
-#gem 'newrelic_rpm'
+gem 'newrelic_rpm'
 
 # workaround for bug in Fedora
 gem 'minitest', '~> 4.3.2'
@@ -62,7 +62,7 @@ group :test do
   gem 'shoulda-context', require: false
   gem 'factory_girl'
   gem 'mocha', require: false
-#gem 'debugger'  unless ENV['CI']
+  gem 'debugger'  unless ENV['CI']
   gem 'sunspot_test', git: 'git://github.com/tsujigiri/sunspot_test.git', branch: 'dirty_quickfix'
   #gem "turn", "< 0.8.3" # truncates backtraces in the tests (bad)
   gem 'simplecov', require: false
