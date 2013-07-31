@@ -11,7 +11,7 @@ class Snp < ActiveRecord::Base
   serialize :genotype_frequency
 
   extend FriendlyId
-  friendly_id :name, :use => :history, :slug_column => :name
+  friendly_id :name, :use => :slugged
 
   validates_uniqueness_of :name
 
