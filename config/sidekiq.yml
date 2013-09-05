@@ -3,7 +3,7 @@
 :pidfile: tmp/pids/sidekiq.pid
 :logfile: ./log/sidekiq.log
 :global: true
-:concurrency: 10
+:concurrency: 1
 
 :queues:
  - [deletegenotype, 10]
