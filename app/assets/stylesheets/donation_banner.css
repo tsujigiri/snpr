@@ -1,0 +1,20 @@
+#donation-banner {
+  position: fixed;
+  top: 0;
+  background-color: #0079CC;
+  height: 3em;
+  width: 90%;
+  color: #C9E9FF;
+  text-align: center;
+  font-size: 1em;
+  font-weight: bold;
+  padding-left: 5%;
+  padding-right: 5%;
+  padding-top: 0.2em;
+  padding-bottom: 0.2em;
+  line-height: 1.1em;
+}
+
+.navbar-fixed-top {
+  top: 3em;
+}
