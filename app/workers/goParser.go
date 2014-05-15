@@ -189,12 +189,10 @@ func main() {
 			linelist = strings.Split(line, "\t")
 		} else if filetype == "ancestry" {
 			linelist = strings.Split(line, "\t")
-			log.Println(linelist)
 			if linelist[0] == "rsid" {
 				continue
 			}
 			linelist = []string{linelist[0], linelist[1], linelist[2], linelist[3] + linelist[4]}
-			log.Println(linelist)
 		} else if filetype == "decodeme" {
 			linelist = strings.Split(line, ",")
 			if linelist[0] == "name" {
