@@ -8,7 +8,6 @@ import (
 	"fmt"
 	lumber "github.com/jcelliott/lumber"
 	_ "github.com/lib/pq"
-	"log"
 	"os"
 	"strings"
 	"time"
