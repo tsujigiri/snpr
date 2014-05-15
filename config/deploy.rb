@@ -20,6 +20,7 @@ load 'lib/capistrano/tasks/base'
 load 'lib/capistrano/tasks/assets'
 load 'lib/capistrano/tasks/solr'
 load 'lib/capistrano/tasks/passenger'
+load 'lib/capistrano/tasks/goparser'
 
 after 'deploy:update', 'deploy:migrate'
 after 'deploy:restart', 'passenger:restart'
