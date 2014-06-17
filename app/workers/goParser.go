@@ -126,6 +126,7 @@ func main() {
 	}
 	if root_path == "" {
 		fmt.Println("ERROR: Root-path is empty")
+        flag.PrintDefaults()
 		os.Exit(1)
 	}
 	logger, _ = lumber.NewFileLogger(root_path+"/log/go_parser.log", lumber.INFO, lumber.ROTATE, 5000, 9, 0)
