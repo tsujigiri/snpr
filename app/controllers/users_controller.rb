@@ -33,6 +33,7 @@ class UsersController < ApplicationController
 
   def index
     # showing all users
+    # TODO: Refactor this. - Helge
     @users = User.order(sort_column + " " + sort_direction)
     @users_paginate = @users.paginate(:page => params[:page], :per_page => 10)
     @title = "Listing all users"
@@ -82,8 +83,8 @@ class UsersController < ApplicationController
 
     # get phenotypes that current_user did not enter yet
     @unentered_phenotypes = Phenotype.all - @user.phenotypes
+    @unentered_phenotypes = @unentered_phenotypes.shuffle
     @unentered_phenotypes = @unentered_phenotypes[0..20]
-    @unentered_phenotypes.sort! { |b,a| a.number_of_users <=> b.number_of_users }
 
     #find all snp-comment-replies that this user got
     @user_snp_comment_ids = []

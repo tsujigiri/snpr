@@ -1,7 +1,7 @@
 language: ruby # Defaults to ruby, but travis-ci recommends making this explicit.
 rvm:
-  - 1.9.2
-  - 2.1.0
+  - 2.0.0
+  - 2.1.2
 go:
   - 1.1
 env: DB=postgres CI=1
@@ -13,7 +13,7 @@ before_script:
   - cp config/app_config.yml.example config/app_config.yml
   - echo "foo" > mail_username.txt
   - echo "bar" > mail_password.txt
-  - echo "anyOleBollocks" > secret_token
+  - echo "f7264dd590e09007703723a75550c748" > secret_token
   - psql -c 'create database snpr_test;' -U postgres
 # script: "bundle install" # this is automatically run by travis-ci
 services:

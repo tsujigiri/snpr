@@ -44,11 +44,14 @@ gem 'recommendify', github: 'paulasmuth/recommendify', :ref => "34308c4"
 gem 'database_cleaner'
 
 
-# for jobs
+# background jobs
 gem 'sidekiq'
 gem 'sidekiq-limit_fetch'
 gem 'slim', '~> 1.3.8'
 gem 'sinatra'
+
+# cron jobs
+gem 'whenever', require: false
 
 # for activeadmin-interface
 gem 'devise', '3.0.0'
@@ -73,20 +76,28 @@ end
 
 group :test do
   gem 'shoulda-context', require: false
-  gem 'factory_girl'
+  gem 'factory_girl_rails'
   gem 'mocha', require: false
   gem 'sunspot_test', github: 'tsujigiri/sunspot_test', branch: 'dirty_quickfix'
   gem 'simplecov', require: false
   gem 'webmock'
   gem 'vcr'
+  gem 'capybara'
 end
 
 group :debug do
-  gem 'debugger2'
+  gem 'pry-rails'
 end
 
 group :development, :test do
   gem 'uuidtools'
-gem 'capistrano', '~> 2.0'
-gem 'rvm-capistrano', '1.4.4'
+  gem 'rspec-rails'
+end
+
+group :development do
+  gem 'guard-rspec'
+  gem 'spring'
+  gem 'spring-commands-rspec'
+  gem 'capistrano', '~> 2.0'
+  gem 'rvm-capistrano', '1.4.4'
 end

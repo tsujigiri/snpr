@@ -11,7 +11,7 @@
 #
 # It's strongly recommended to check this file into your version control system.
 
-ActiveRecord::Schema.define(:version => 20140221060607) do
+ActiveRecord::Schema.define(:version => 20140509001806) do
 
   create_table "achievements", :force => true do |t|
     t.text     "award"
@@ -229,7 +229,7 @@ ActiveRecord::Schema.define(:version => 20140221060607) do
 
   create_table "picture_phenotypes", :force => true do |t|
     t.string   "characteristic"
-    t.string   "description"
+    t.text     "description"
     t.integer  "number_of_users", :default => 0
     t.datetime "created_at",                     :null => false
     t.datetime "updated_at",                     :null => false
@@ -280,9 +280,9 @@ ActiveRecord::Schema.define(:version => 20140221060607) do
     t.string   "allele_frequency"
     t.integer  "ranking"
     t.integer  "number_of_users",    :default => 0
-    t.datetime "mendeley_updated",   :default => '2014-02-27 12:24:37'
-    t.datetime "plos_updated",       :default => '2014-02-27 12:24:37'
-    t.datetime "snpedia_updated",    :default => '2014-02-27 12:24:37'
+    t.datetime "mendeley_updated",   :default => '2014-05-23 08:01:14'
+    t.datetime "plos_updated",       :default => '2014-05-23 08:01:14'
+    t.datetime "snpedia_updated",    :default => '2014-05-23 08:01:14'
     t.datetime "created_at",                                            :null => false
     t.datetime "updated_at",                                            :null => false
     t.integer  "user_snps_count"

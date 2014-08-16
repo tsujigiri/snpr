@@ -1,53 +1,51 @@
 class SnpsController < ApplicationController
   helper_method :sort_column, :sort_direction
-  before_filter :find_snp, :except => [:index, :json,:json_annotation]
+  before_filter :find_snp, except: [:index, :json,:json_annotation]
 
   def index
     @snps = Snp.order(sort_column + " "+ sort_direction)
-    @snps_paginate = @snps.paginate(:page => params[:page],:per_page => 10)
+    @snps_paginate = @snps.paginate(page: params[:page], per_page: 10)
     @title = "Listing all SNPs"
-    respond_to do |format|
-      format.html
-      format.xml 
-    end
   end
 
   def show
     @snp = Snp.includes(:snp_comments).
       where(name: params[:id].downcase).first || not_found
-    @title = @snp.name
-    @comments = @snp.snp_comments.order('created_at ASC').all
-    @user_count = @snp.user_snps.select('distinct(user_id)').count
 
-
-    @user_snp = nil
-    if current_user
-      @user_snp = @snp.user_snps.where(user_id: current_user.id).first
-      @local_genotype = @user_snp.try(:local_genotype) || ''
-    end
-
-    @total_genotypes = @snp.genotype_frequency.map {|k,v| v }.sum
-    @total_alleles = @snp.allele_frequency.map {|k,v| v }.sum
-
+    # TODO: Let's remove this here and use Snp.update_papers from a cron job
+    # instead. Shall we? - Helge
     Sidekiq::Client.enqueue(PlosSearch, @snp.id)
     Sidekiq::Client.enqueue(MendeleySearch, @snp.id)
     Sidekiq::Client.enqueue(Snpedia, @snp.id)
 
+    if params[:format] == 'json'
+      users = @snp.users
+      json_results = users.map do |u|
+        json_element(user_id: u.id, snp_name: @snp.name)
+      end
+      render json: json_results
+      return
+    end
+
+    @title = @snp.name
+    @comments = @snp.snp_comments.order('created_at ASC')
     @snp_comment = SnpComment.new
 
-    respond_to do |format|
-      format.html
-      format.json do
-        @users = @snp.user_snps.map(&:user)
-        json_results = @users.map do |u|
-          json_element(user_id: u.id, snp_name: @snp.name)
-        end
-        render :json => json_results
+    if current_user
+      # Refactor the following - fixes it for now. Problem with several genotypes. - Philipp
+      @current_genotypes = current_user.genotypes
+      if @current_genotypes != []
+        @user_snp = @snp.user_snps.where(genotype_id: @current_genotypes.first.id).first
+        @local_genotype = @user_snp.try(:local_genotype) || ''
+      else
+        @user_snp = nil
+        @local_genotype = nil
       end
     end
   end
 
   def json
+    # TODO: Refactor this. - Helge
     if params[:user_id].index(",")
       @user_ids = params[:user_id].split(",")
       @results = []
@@ -72,15 +70,18 @@ class SnpsController < ApplicationController
     end
 
     respond_to do |format|
-      format.json { render :json => @results } 
+      format.json { render json: @results } 
     end
   end
 
   def make_annotation(result, snp, name)
+    # TODO: Refactor this. - Helge
     result[name] = {}
     result[name]["name"] = snp.name
     result[name]["chromosome"] = snp.chromosome
     result[name]["position"] = snp.position
+    result[name]["allele_frequency"] = snp.allele_frequency
+    result[name]["genotype_frequency"] = snp.genotype_frequency
     result[name]["annotations"] = {}
     result[name]["annotations"]["mendeley"] = []
     puts "got snp-details"
@@ -174,62 +175,68 @@ class SnpsController < ApplicationController
 
     @result = result 
     respond_to do |format|
-      format.json { render :json => @result } 
+      format.json { render json: @result } 
     end
   end
-        
-    private
-    
-    def sort_column
-      Snp.column_names.include?(params[:sort]) ? params[:sort] : "ranking"
-    end
-    
-    def sort_direction
+
+  private
+
+  def sort_column
+    Snp.column_names.include?(params[:sort]) ? params[:sort] : "ranking"
+  end
+
+  def sort_direction
     %w[asc desc].include?(params[:direction]) ? params[:direction] : "desc"
-    end
-
-    def json_element(params)
-      @result = {}
-      begin
-        @snp = Snp.find_by_name(params[:snp_name].downcase)
-        @result["snp"] = {}
-        @result["snp"]["name"] = @snp.name
-        @result["snp"]["chromosome"] = @snp.chromosome
-        @result["snp"]["position"] = @snp.position
-
-        @user_snps = @snp.user_snps.where(user_id: params[:user_id])
-        @user = User.find_by_id(params[:user_id])
-        @genotypes_array = []
-
-        @user_snps.each do |us|
-          @genotype_hash = {}
-          @genotype_hash["genotype_id"] = us.genotype_id
-          @genotype_hash["local_genotype"] = us.local_genotype
-          @genotypes_array << @genotype_hash
-        end
-
-        @result["user"] = {}
-        @result["user"]["name"] = @user.name
-        @result["user"]["id"] = @user.id
-        @result["user"]["genotypes"] = @genotypes_array
-      rescue
-        @result = {}
-        @result["error"] = "Sorry, we couldn't find any information for SNP "+params[:snp_name].to_s+" and user "+params[:user_id].to_s
-      end
-      return @result
-    end
-
-    def find_snp
-      @snp = Snp.find(params[:id].downcase) || not_found
-
-      # If an old id or a numeric id was used to find the record, then
-      # the request path will not match the post_path, and we should do
-      # a 301 redirect that uses the current friendly id.
-      if request.path != snp_path(@snp)
-        if request.path.index(".json") == nil
-          return redirect_to @snp, :status => :moved_permanently
-        end
-      end
-    end
-
   end
+
+  def json_element(params)
+    # TODO: Refactor this. - Helge
+    @result = {}
+    begin
+      @snp = params[:snp] || Snp.find_by_name(params[:snp_name].downcase)
+      @result["snp"] = {}
+      @result["snp"]["name"] = @snp.name
+      @result["snp"]["chromosome"] = @snp.chromosome
+      @result["snp"]["position"] = @snp.position
+
+      @user = User.find_by_id(params[:user_id])
+      # Same hacky fix as above on line 35 - Philipp
+      @genotypes = @user.genotypes
+      if @genotypes != []
+        @user_snps = @snp.user_snps.where(genotype_id: @genotypes.first.id)
+      else
+        @user_snps = []
+      end
+      @genotypes_array = []
+
+      @user_snps.each do |us|
+        @genotype_hash = {}
+        @genotype_hash["genotype_id"] = us.genotype_id
+        @genotype_hash["local_genotype"] = us.local_genotype
+        @genotypes_array << @genotype_hash
+      end
+
+      @result["user"] = {}
+      @result["user"]["name"] = @user.name
+      @result["user"]["id"] = @user.id
+      @result["user"]["genotypes"] = @genotypes_array
+    rescue
+      @result = {}
+      @result["error"] = "Sorry, we couldn't find any information for SNP "+params[:snp_name].to_s+" and user "+params[:user_id].to_s
+    end
+    return @result
+  end
+
+  def find_snp
+    @snp = Snp.find(params[:id].downcase) || not_found
+
+    # If an old id or a numeric id was used to find the record, then
+    # the request path will not match the post_path, and we should do
+    # a 301 redirect that uses the current friendly id.
+    if request.path != snp_path(@snp)
+      if request.path.index(".json") == nil
+        return redirect_to @snp, status: :moved_permanently
+      end
+    end
+  end
+end

@@ -30,3 +30,4 @@ tmp/
 .vagrant
 .sass-cache/
 app/workers/goParser
+public/data/zip/opensnp_datadump.current.zip
