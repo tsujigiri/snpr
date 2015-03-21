@@ -16,7 +16,9 @@ Snpr::Application.routes.draw do
   resources :user_picture_phenotypes
   resources :genotypes
   resources :user_phenotypes
-  resources :snps
+  resources :snps do
+    resources :comments, only: [:index, :create, :destroy], constraints: { format: 'json' }
+  end
   resources :users
   resource :user_session
   resources :user_snps
