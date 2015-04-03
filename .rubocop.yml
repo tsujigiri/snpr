@@ -14,4 +14,4 @@ Style/IfUnlessModifier:
   Enabled: false
 
 Style/TrailingComma:
-  EnforcedStyleForMultiline: comma
+  Enabled: false
