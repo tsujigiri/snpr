@@ -29,6 +29,7 @@ gem 'pg'
 gem 'activerecord-import', '>= 0.4.0'
 gem 'composite_primary_keys', '~> 8.0'
 gem 'pg_search'
+gem 'neo4j'
 
 # so we can create zip-files for genotypes
 gem 'rubyzip'

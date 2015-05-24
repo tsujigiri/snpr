@@ -2,7 +2,7 @@ class Parsing
   include Sidekiq::Worker
   sidekiq_options queue: :user_snps, retry: 5, unique: true
 
-  attr_reader :genotype, :temp_table_name, :tempfile, :stats, :start_time
+  attr_reader :genotype, :genotype_node, :user_snps, :snps, :stats, :start_time
 
   def perform(genotype_id)
     @stats = {}
@@ -14,115 +14,64 @@ class Parsing
     @temp_table_name = "user_snps_temp_#{genotype.id}"
     @tempfile = Tempfile.new("snpr_genotype_#{genotype.id}_")
 
-    send_logged(:create_temp_table)
     send_logged(:normalize_csv)
-    send_logged(:copy_csv_into_temp_table)
-    send_logged(:insert_into_snps)
-    send_logged(:insert_into_user_snps)
+    Neo4j::Transaction.run do
+      send_logged(:insert_genotype)
+      send_logged(:insert_snps)
+      send_logged(:insert_user_snps)
+    end
     send_logged(:notify_user)
 
     stats[:duration] = "#{(Time.current - start_time).round(3)}s"
     logger.info("Finished parsing: #{stats.to_a.map { |s| s.join('=') }.join(', ')}")
   rescue => e
     logger.error("Failed with #{e.class}: #{e.message}")
-    raise
-  ensure
-    drop_temp_table
-    File.delete(tempfile.path)
-  end
-
-  def create_temp_table
-    execute("drop table if exists #{temp_table_name}")
-    execute(<<-SQL)
-      create table #{temp_table_name} (
-        snp_name varchar(32),
-        chromosome varchar(32),
-        position varchar(32),
-        local_genotype char(2)
-      )
-    SQL
-  end
-
-  def drop_temp_table
-    execute("drop table #{temp_table_name}")
+    fail
   end
 
   def normalize_csv
     rows = File.readlines(genotype.genotype.path)
       .reject { |line| line.start_with?('#') } # Skip comments
     stats[:rows_without_comments] = rows.length
-    csv = send(:"parse_#{genotype.filetype.gsub('-', '_').downcase}", rows)
+    user_snps = send(:"parse_#{genotype.filetype.gsub('-', '_').downcase}", rows)
     known_chromosomes = ['MT', 'X', 'Y', (1..22).map(&:to_s)].flatten
-    csv.select! do |row|
-      # snp name
-      row[0].present? &&
-      # chromosome
-      known_chromosomes.include?(row[1]) &&
-      # position
-      row[2].to_i >= 1 && row[2].to_i <= 249_250_621 &&
-      # local genotype
-      row[3].is_a?(String) && (1..2).include?(row[3].length)
+    user_snps.select! do |row|
+      row[:snp_name].present? &&
+      known_chromosomes.include?(row[:chromosome]) &&
+      row[:position].to_i >= 1 && row[:position].to_i <= 249_250_621 &&
+      row[:local_genotype].is_a?(String) && (1..2).include?(row[:local_genotype].length)
     end
-    stats[:rows_after_parsing] = csv.length
-    tempfile.write(csv.map { |row| row.join(',') }.join("\n"))
-    tempfile.close
-    FileUtils.chmod(0644, tempfile.path)
+    stats[:rows_after_parsing] = user_snps.count
+    @user_snps = user_snps.lazy
   end
 
-  def copy_csv_into_temp_table
-    execute(<<-SQL)
-      copy #{temp_table_name} (
-        snp_name,
-        chromosome,
-        position,
-        local_genotype
-      )
-      from '#{tempfile.path}'
-      with (FORMAT CSV, HEADER FALSE, DELIMITER ',')
-    SQL
+  def insert_genotype
+    Graph::Genotype.find_by(genotype_id: genotype.id).try(:destroy)
+    @genotype_node = Graph::Genotype.create!(genotype_id: genotype.id)
   end
 
-  def insert_into_snps
-    time = Time.now.utc.iso8601
-
-    snps = execute(<<-SQL)
-      select
-        #{temp_table_name}.snp_name as name,
-        #{temp_table_name}.chromosome,
-        #{temp_table_name}.position,
-        1 as user_snps_count
-      from #{temp_table_name}
-      left join snps on #{temp_table_name}.snp_name = snps.name
-      where snps.name is null
-    SQL
-    Snp.create!(snps.to_a)
+  def insert_snps
+    @snps = user_snps.map do |user_snp|
+      Graph::Snp.find_or_create_by!(name: user_snp[:snp_name])
+    end
   end
 
-  def insert_into_user_snps
-    execute(<<-SQL)
-      insert into user_snps (snp_name, local_genotype, genotype_id)
-      (
-        select
-          #{temp_table_name}.snp_name,
-          #{temp_table_name}.local_genotype,
-          #{genotype.id} as genotype_id
-        from #{temp_table_name}
-        where #{temp_table_name}.snp_name not in (
-          select snp_name from user_snps where genotype_id = #{genotype.id}
-        )
-      )
-    SQL
+  def insert_user_snps
+    snps.each do |snp|
+      genotype_node.snps << snp
+    end
+    genotype_node.save!
   end
 
   def parse_23andme(rows)
     rows.map do |row|
       fields = row.strip.split("\t")
-      [
-        fields[0],
-        fields[1],
-        fields[2],
-        fields[3].to_s.rstrip
-      ]
+      {
+        snp_name: fields[0],
+        chromosome: fields[1],
+        position: fields[2],
+        local_genotype: fields[3].to_s.rstrip,
+      }
     end
   end
 
@@ -139,12 +88,12 @@ class Parsing
       trans_dict = {"0" => major_allele, "1" => minor_allele}
       names = fields[-1].split(":")[0].split("/") # ["0", "1"], meaning A/C
       alleles = names.map{ |a| trans_dict[a]}.sort.join # becomes AC
-      [
-        fields[2],
-        fields[0],
-        fields[1],
-        alleles
-      ]
+      {
+        snp_name: fields[2],
+        chromosome: fields[0],
+        position: fields[1],
+        local_genotype: alleles,
+      }
     end.compact # because the above next introduces nil.
     # Slower alternative is to use reject first, but then we'll iterate > 2 times
   end
@@ -153,12 +102,12 @@ class Parsing
     rows.shift if rows.first.start_with?('Name')
     rows.map do |row|
       fields = row.strip.split(',')
-      [
-        fields[0],
-        fields[2],
-        fields[3],
-        fields[5]
-      ]
+      {
+        snp_name: fields[0],
+        chromosome: fields[2],
+        position: fields[3],
+        local_genotype: fields[5],
+      }
     end
   end
 
@@ -166,12 +115,12 @@ class Parsing
     rows.shift if rows.first.start_with?('rsid')
     rows.map do |row|
       fields = row.strip.split("\t")
-      [
-        fields[0],
-        fields[1],
-        fields[2],
-        "#{fields[3]}#{fields[4]}"
-      ]
+      {
+        snp_name: fields[0],
+        chromosome: fields[1],
+        position: fields[2],
+        local_genotype: "#{fields[3]}#{fields[4]}",
+      }
     end
   end
 
@@ -179,12 +128,12 @@ class Parsing
     rows.shift if rows.first.start_with?('RSID')
     rows.map do |row|
       fields = row.strip.split(',')
-      [
-        fields[0].to_s.gsub('"', ''),
-        fields[1].to_s.gsub('"', ''),
-        fields[2].to_s.gsub('"', ''),
-        fields[3].to_s.gsub('"', '')
-      ]
+      {
+        snp_name: fields[0].to_s.gsub('"', ''),
+        chromosome: fields[1].to_s.gsub('"', ''),
+        position: fields[2].to_s.gsub('"', ''),
+        local_genotype: fields[3].to_s.gsub('"', ''),
+      }
     end
   end
 
@@ -209,12 +158,12 @@ class Parsing
       else
         position = chromosome = '1'
       end
-      [
-        db_snp_names.fetch(snp_name, snp_name),
-        chromosome,
-        position,
-        local_genotype.strip
-      ]
+      {
+        snp_name: db_snp_names.fetch(snp_name, snp_name),
+        chromosome: chromosome,
+        position: position,
+        local_genotype: local_genotype.strip,
+      }
     end
   end
 

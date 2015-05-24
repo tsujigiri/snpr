@@ -8,6 +8,8 @@ if defined?(Bundler)
   Bundler.require(*Rails.groups)
 end
 
+require 'neo4j/railtie'
+
 module Snpr
   class Application < Rails::Application
     # Settings in config/environments/* take precedence over those specified here.
