@@ -5,8 +5,8 @@ class CreateUserSnpsMaster < ActiveRecord::Migration
 
     connection.execute(<<-SQL)
       CREATE TABLE user_snps_master (
-        snp_name varchar(32) REFERENCES snps (name),
-        genotype_id integer REFERENCES genotypes,
+        snp_name varchar(32) REFERENCES snps (name) NOT NULL,
+        genotype_id integer REFERENCES genotypes NOT NULL,
         local_genotype char(2) NOT NULL,
         PRIMARY KEY (snp_name, genotype_id)
       )
@@ -14,6 +14,6 @@ class CreateUserSnpsMaster < ActiveRecord::Migration
   end
 
   def down
-    drop_table :user_snps_master, force: true
+    connection.execute('DROP TABLE user_snps_master CASCADE')
   end
 end
