@@ -2,8 +2,8 @@ class Parsing
   include Sidekiq::Worker
   sidekiq_options queue: :user_snps, retry: 5, unique: true
 
-  attr_reader :genotype, :temp_table_name, :tempfile, :stats, :start_time,
-              :partition_table_name
+  attr_reader :genotype, :temp_table_name, :stats, :start_time,
+              :partition_table_name, :normalized_csv
 
   def perform(genotype_id)
     @stats = {}
@@ -13,7 +13,6 @@ class Parsing
     stats[:filetype] = genotype.filetype
     stats[:genotype_id] = genotype.id
     @temp_table_name = "user_snps_#{genotype.id}_temp"
-    @tempfile = Tempfile.new("snpr_genotype_#{genotype.id}_")
     @partition_table_name = "user_snps_#{genotype.id}"
 
     send_logged(:normalize_csv)
@@ -32,8 +31,6 @@ class Parsing
   rescue => e
     logger.error("Failed with #{e.class}: #{e.message}")
     raise
-  ensure
-    File.delete(tempfile.path)
   end
 
   def create_partition_table
@@ -61,9 +58,9 @@ class Parsing
     rows = File.readlines(genotype.genotype.path)
       .reject { |line| line.start_with?('#') } # Skip comments
     stats[:rows_without_comments] = rows.length
-    csv = send(:"parse_#{genotype.filetype.gsub('-', '_').downcase}", rows)
+    user_snps = send(:"parse_#{genotype.filetype.gsub('-', '_').downcase}", rows)
     known_chromosomes = ['MT', 'X', 'Y', (1..22).map(&:to_s)].flatten
-    csv.select! do |row|
+    user_snps.select! do |row|
       # snp name
       row[0].present? &&
       # chromosome
@@ -73,23 +70,26 @@ class Parsing
       # local genotype
       row[3].is_a?(String) && (1..2).include?(row[3].length)
     end
-    stats[:rows_after_parsing] = csv.length
-    tempfile.write(csv.map { |row| row.join(',') }.join("\n"))
-    tempfile.close
-    FileUtils.chmod(0644, tempfile.path)
+    stats[:rows_after_parsing] = user_snps.length
+    @normalized_csv = user_snps.map { |row| row.join(',') }.join("\n")
   end
 
   def copy_csv_into_temp_table
-    connection.execute(<<-SQL)
+    sql = <<-SQL
       COPY #{temp_table_name} (
         snp_name,
         chromosome,
         position,
         local_genotype
       )
-      FROM '#{tempfile.path}'
+      FROM STDIN
       WITH (FORMAT CSV, HEADER FALSE, DELIMITER ',')
     SQL
+
+    raw = connection.raw_connection
+    raw.copy_data(sql) do
+      raw.put_copy_data normalized_csv
+    end
   end
 
   def insert_into_snps
