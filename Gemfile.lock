@@ -94,6 +94,8 @@ GEM
       activesupport (>= 3.0)
     cocaine (0.5.7)
       climate_control (>= 0.0.3, < 1.0)
+    codeclimate-test-reporter (0.4.7)
+      simplecov (>= 0.7.1, < 1.0.0)
     coderay (1.1.0)
     composite_primary_keys (8.1.0)
       activerecord (~> 4.2.0)
@@ -371,6 +373,7 @@ DEPENDENCIES
   bcrypt-ruby
   capistrano (~> 2.0)
   capybara
+  codeclimate-test-reporter
   composite_primary_keys (~> 8.0)
   database_cleaner
   dynamic_form
@@ -407,7 +410,6 @@ DEPENDENCIES
   shoulda-context
   sidekiq
   sidekiq-limit_fetch
-  simplecov
   sinatra
   slim (~> 1.3.8)
   slop

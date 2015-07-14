@@ -69,12 +69,12 @@ group :test do
   gem 'rspec-rails'
   gem 'shoulda-context'
   gem 'mocha', require: false
-  gem 'simplecov', require: false
   gem 'webmock'
   gem 'vcr'
   gem 'capybara'
   gem 'database_cleaner'
   gem 'timecop'
+  gem 'codeclimate-test-reporter', group: :test, require: nil
 end
 
 group :development, :test do

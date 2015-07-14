@@ -1,8 +1,10 @@
 ENV["RAILS_ENV"] = "test"
-unless ENV['CI']
-  require 'simplecov'
-  SimpleCov.start('rails')
+
+if ENV['CODECLIMATE_REPO_TOKEN']
+  require 'codeclimate-test-reporter'
+  CodeClimate::TestReporter.start
 end
+
 require File.expand_path('../../config/environment', __FILE__)
 require "test/unit"
 require "shoulda-context"
@@ -19,6 +21,7 @@ VCR.configure do |c|
   c.cassette_library_dir = 'test/data/vcr_cassettes'
   c.hook_into :webmock
   c.allow_http_connections_when_no_cassette = true
+  c.ignore_hosts 'codeclimate.com'
 end
 
 class ActiveSupport::TestCase
