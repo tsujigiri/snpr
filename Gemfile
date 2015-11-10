@@ -76,6 +76,7 @@ group :test do
   gem 'capybara'
   gem 'database_cleaner'
   gem 'timecop'
+  gem 'codeclimate-test-reporter', require: false
 end
 
 group :development, :test do
