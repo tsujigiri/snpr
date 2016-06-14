@@ -9,7 +9,9 @@ addons:
 services:
   - redis-server
 rvm:
+  - 1.9
   - 2.2
+  - 2.3
 env: DB=postgres CI=1
 bundler_args: --without development debug
 before_script:
